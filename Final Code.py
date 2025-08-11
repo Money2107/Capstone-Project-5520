@@ -12,10 +12,8 @@ from sklearn.svm import SVC
 from sklearn.metrics import classification_report, roc_auc_score
 from sklearn.model_selection import train_test_split, GridSearchCV
 
-# Disable RDKit warnings for clean output
 RDLogger.DisableLog('rdApp.*')
 
-#%% Load and clean data
 file_path = r"C:\Users\aryan\Downloads\DOWNLOAD-123PGkwNz0F5D2N1bOH-dO2T4_X6xWvMO7n8RNk-wRs_eq_\imatinib(2).csv"
 
 df = pd.read_csv(
@@ -26,10 +24,10 @@ df = pd.read_csv(
     on_bad_lines='skip'
 )
 
-# Strip quotes from column names
+
 df.columns = df.columns.str.strip('"')
 
-# Strip quotes from string columns
+
 for col in df.select_dtypes(include='object').columns:
     df[col] = df[col].str.strip('"')
 
@@ -37,16 +35,16 @@ print(f"Original data shape: {df.shape}")
 print(df.columns)
 print(df.head())
 
-# Check missing values
+
 print("Missing values per column:\n", df.isnull().sum())
 
-# Filter IC50 data, use .copy() to avoid SettingWithCopyWarning
+
 df_ic50 = df[df['Standard Type'] == 'IC50'].copy()
 
-# Drop rows with missing 'Smiles' or 'Standard Value'
+
 df_ic50 = df_ic50.dropna(subset=['Smiles', 'Standard Value'])
 
-# Convert 'Standard Value' to numeric and drop NaNs
+
 df_ic50['Standard Value'] = pd.to_numeric(df_ic50['Standard Value'], errors='coerce')
 df_ic50 = df_ic50.dropna(subset=['Standard Value'])
 
@@ -59,16 +57,15 @@ def mol_to_fp(mol):
     else:
         return None
 
-# Convert SMILES to molecules and fingerprints
 df_ic50['mol'] = df_ic50['Smiles'].apply(Chem.MolFromSmiles)
 df_ic50['fingerprint'] = df_ic50['mol'].apply(mol_to_fp)
 
-# Remove entries with None fingerprints
+
 df_ic50 = df_ic50[df_ic50['fingerprint'].notnull()].copy()
 
 print(f"After fingerprint filtering: {df_ic50.shape}")
 
-# Convert fingerprints to numpy arrays for ML
+
 def fp_to_array(fp):
     arr = np.zeros((2048,), dtype=int)
     if fp is not None:
@@ -92,7 +89,7 @@ def fetch_uniprot_sequence(uniprot_id):
     else:
         return None
 
-# Get unique target IDs and initialize dictionary
+
 unique_targets = df_ic50['Target ChEMBL ID'].str.strip().unique()
 target_sequences = {}
 
@@ -114,7 +111,7 @@ for target_id in unique_targets:
     else:
         target_sequences[target_id] = None
 
-# Map sequences to dataframe
+
 df_ic50['Protein Sequence'] = df_ic50['Target ChEMBL ID'].str.strip().map(target_sequences)
 
 print(f"Sequences fetched for {df_ic50['Protein Sequence'].notnull().sum()} out of {len(df_ic50)} entries")
@@ -130,10 +127,10 @@ def aa_composition(seq):
 
 df_ic50['protein_feat'] = df_ic50['Protein Sequence'].apply(lambda x: aa_composition(x) if isinstance(x, str) else np.nan)
 
-# Drop rows with missing fingerprint or protein features
+
 df_clean = df_ic50.dropna(subset=['fp_array', 'protein_feat']).copy()
 
-# Prepare features and labels
+
 X_mol = np.stack(df_clean['fp_array'].values)
 X_prot = np.stack(df_clean['protein_feat'].values)
 X = np.hstack([X_mol, X_prot])
